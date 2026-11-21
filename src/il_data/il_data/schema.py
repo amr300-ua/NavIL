@@ -5,10 +5,13 @@ en navegación (NavIL).
 
 Cada MuestraNavegacion representa una observación del robot
 junto con la acción correspondiente proporcionada por Nav2.
+
+Su función es definir que información tiene que contener
+cada muestra de entrenamiento.
 """
 
-from dataclasses import asdict, dataclass
 import math
+from dataclasses import asdict, dataclass
 from typing import Any
 
 
@@ -113,3 +116,37 @@ class MuestraNavegacion:
                 datos.get("version_esquema", VERSION_ESQUEMA)
             ),
         )
+
+
+# PRUEBA
+"""
+# Crear una muestra válida
+muestra = MuestraNavegacion(
+    marca_temporal=1.0,
+    id_episodio="episodio_001",
+    lecturas_lidar=[1.0] * 90,
+    distancia_objetivo=2.5,
+    angulo_objetivo=0.35,
+    velocidad_lineal_experta=0.2,
+    velocidad_angular_experta=-0.15
+)
+
+print("Muestra creada correctamente")
+print(muestra.a_diccionario())
+
+# Comprobar que rechaza una muestra incorrecta
+try:
+    MuestraNavegacion(
+        marca_temporal=1.0,
+        id_episodio="episodio_002",
+        lecturas_lidar=[1.0] * 89,
+        distancia_objetivo=2.5,
+        angulo_objetivo=0.35,
+        velocidad_lineal_experta=0.2,
+        velocidad_angular_experta=-0.15
+    )
+
+except ValueError as error:
+    print("\nValidación correcta:")
+    print(error)
+"""
