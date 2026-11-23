@@ -1,0 +1,33 @@
+
+# Escenarios para generar demostraciones con Nav2.
+# Las coordenadas estan expresadas en el marco "map".
+# Las orientaciones yaw estan expresadas en grados.
+
+escenarios:
+
+  ruta_validada:
+    descripcion: "Recorrido entre dos puntos del almacen"
+    waypoints:
+      - x: -3.810
+        y: -0.725
+        yaw: 0.0
+
+      - x: -1.372
+        y: 2.218
+        yaw: 0.0
+
+  ida_vuelta:
+    descripcion: "Recorrido entre dos puntos y regreso al primero"
+    waypoints:
+      - x: -3.810
+        y: -0.725
+        yaw: 0.0
+
+      - x: -1.372
+        y: 2.218
+        yaw: 0.0
+
+      - x: -3.810
+        y: -0.725
+        yaw: 0.0
+
