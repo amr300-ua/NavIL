@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-        ],
-    },
+            'goal_sender = navil_expert.goal_sender:main',
+    ],
+},
 )
