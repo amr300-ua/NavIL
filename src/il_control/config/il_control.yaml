@@ -1,0 +1,49 @@
+# Parámetros del módulo 4 (il_control). Valores pensados para TurtleBot 4 en Gazebo.
+# Los argumentos de il_control.launch.py (mode, policy_type, model_path...)
+# sobrescriben estos valores solo si se pasan explícitamente.
+
+il_policy_node:
+  ros__parameters:
+    policy_type: mock_reactive     # mock_reactive | mock_goal | zero | il_policy
+    model_path: ""                 # checkpoint .pt de il_policy (ciclo 2)
+    device: cpu
+    control_rate: 10.0             # Hz. LiDAR del TB4 ~5-10 Hz; Nav2 controla a 20 Hz
+    scan_topic: /scan
+    goal_topic: /goal_pose
+    output_topic: /cmd_vel_policy  # nunca /cmd_vel: lo decide el mux
+    output_stamped: true           # TB4 en Jazzy: TwistStamped
+    base_frame: base_link
+    use_lidar_tf: true             # yaw del rplidar_link respecto a base_link desde TF
+    lidar_yaw_offset: 0.0          # solo si use_lidar_tf=false o no hay TF
+    scan_timeout: 0.5              # s
+    goal_tolerance: 0.25           # m (igual que el xy_goal_tolerance típico de Nav2)
+    publish_observation: false     # /il_control/observation (depuración/evaluación)
+
+cmd_vel_mux:
+  ros__parameters:
+    mode: expert                   # expert | policy | stop
+    expert_topic: /cmd_vel_expert     # salida de Nav2 REMAPEADA (ver README)
+    policy_topic: /cmd_vel_policy
+    output_topic: /cmd_vel
+    expert_stamped: true
+    policy_stamped: true
+    output_stamped: true
+    scan_topic: /scan
+    base_frame: base_link
+    use_lidar_tf: true
+    lidar_yaw_offset: 0.0
+    publish_rate: 20.0             # Hz, salida a frecuencia fija
+    proximity_check_expert: true   # la misma capa de seguridad para Nav2 y la red
+    # --- capa de seguridad ---
+    v_max: 0.30                    # m/s (= v_max del contrato de il_policy)
+    v_min: -0.10                   # m/s
+    w_max: 1.50                    # rad/s
+    max_lin_accel: 1.0             # m/s^2
+    max_ang_accel: 4.0             # rad/s^2
+    robot_radius: 0.18             # m
+    lateral_margin: 0.05           # m
+    stop_distance: 0.20            # m libres delante del casco -> parada
+    slow_distance: 0.50            # m libres -> empieza a frenar
+    scan_timeout: 0.5              # s (watchdog LiDAR)
+    cmd_timeout: 0.5               # s (watchdog de la fuente activa)
+    proximity_check: true
