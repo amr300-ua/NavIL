@@ -97,10 +97,17 @@ source ~/ros2_ws/install/setup.bash
 
 # Comprobaciones:
 ros2 pkg list | grep navil_expert
-ros2 run navil_expert goal_sender
+ros2 pkg executables navil_expert
 ```
 
-**Resultado ya comprobado anteriormente:** el nodo de prueba `goal_sender` escribe `Nodo experto iniciado correctamente` y termina; todavía **no envía objetivos**, porque su implementación completa está pendiente.
+
+**Estado actual:** el paquete `navil_expert` contiene dos ejecutables funcionales:
+
+- `goal_sender`: envía un objetivo individual a Nav2 y espera su resultado.
+- `trajectory_generator`: ejecuta varios objetivos consecutivos, permite cargar escenarios YAML y publica eventos de episodios.
+
+Ambos ejecutables han sido probados en el entorno universitario con TurtleBot 4 y Nav2.
+
 
 En **cada nueva terminal Docker** utilizada para lanzar procesos, ejecutar primero:
 
@@ -112,7 +119,7 @@ export ROS_DOMAIN_ID=2
 
 Si el código cambió después de la compilación, volver a ejecutar `colcon build --packages-select navil_expert --symlink-install` y cargar de nuevo `source ~/ros2_ws/install/setup.bash`.
 
-## 5. Poner en marcha la navegación (5 terminales DENTRO de Docker)
+## 5. Poner en marcha la navegación (4 terminales DENTRO de Docker)
 
 Abrir cinco terminales independientes con `docker exec -it --user developer robotica_inteligente_grado bash` desde Ubuntu, y preparar el entorno con las tres líneas `source / export` anteriores en cada una.
 
@@ -124,27 +131,39 @@ ros2 launch turtlebot4_gz_bringup turtlebot4_gz.launch.py use_sim_time:=true
 
 Esperar a que Gazebo cargue el mundo `warehouse` y el robot. No cerrar esta terminal mientras se use la simulación.
 
-### Terminal Docker 2 — Puente provisional del reloj
 
-Durante las pruebas, la publicación original de ROS `/clock` quedaba silenciosa. Se comprobó que **este puente adicional** desde el reloj de Gazebo solucionaba el problema:
+### Comprobar el reloj y los sensores
 
-```bash
-ros2 run ros_gz_bridge parameter_bridge \
-  '/world/warehouse/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock' \
-  --ros-args -r /world/warehouse/clock:=/clock
-```
+Después de iniciar Gazebo, comprobar que el puente de reloj
+incluido en el lanzamiento funciona correctamente.
 
-Comprobar en **otra terminal Docker**:
+Desde otra terminal Docker:
 
 ```bash
-ros2 topic echo --once /clock
-ros2 topic echo --once /odom
-ros2 topic echo --once /scan
+timeout 6 ros2 topic hz /clock
+timeout 6 ros2 topic hz /odom
+timeout 6 ros2 topic hz /scan
 ```
 
-**Advertencia técnica:** es una solución provisional. En las pruebas se detectaron **dos publicadores de `/clock`**, aunque el original no enviaba datos útiles, y a veces surgieron mensajes `TF_OLD_DATA` tras reiniciar Gazebo. Si hay problemas de tiempo/TF, revisar primero los puentes de reloj y reiniciar los nodos afectados; habrá que integrar una solución definitiva más adelante.
+En las pruebas realizadas se observaron frecuencias aproximadas de:
 
-### Terminal Docker 3 — Localización sobre el mapa guardado
+- `/clock`: 266 Hz.
+- `/odom`: 50 Hz.
+- `/scan`: 50 Hz.
+
+No iniciar un segundo puente de `/clock` por defecto.
+
+Si dejan de recibirse mensajes o aparecen errores de TF,
+comprobar primero el estado de Gazebo, los publicadores de
+`/clock` y la coherencia del tiempo simulado.
+
+Evitar reiniciar Gazebo mientras AMCL y Nav2 continúan
+utilizando transformaciones de una simulación anterior.
+Si es necesario reiniciar completamente, detener también
+los nodos de navegación y localización.
+
+
+### Terminal Docker 2 — Localización sobre el mapa guardado
 
 ```bash
 ros2 launch turtlebot4_navigation localization.launch.py \
@@ -154,13 +173,13 @@ ros2 launch turtlebot4_navigation localization.launch.py \
 
 Se usa el mapa que ya está en GitHub; **no hace falta repetir SLAM**.
 
-### Terminal Docker 4 — Nav2
+### Terminal Docker 3 — Nav2
 
 ```bash
 ros2 launch turtlebot4_navigation nav2.launch.py use_sim_time:=true
 ```
 
-### Terminal Docker 5 — RViz
+### Terminal Docker 4 — RViz
 
 ```bash
 ros2 launch turtlebot4_viz view_navigation.launch.py use_sim_time:=true
@@ -221,11 +240,47 @@ docker stop robotica_inteligente_grado
 
 No ejecutar `docker rm` salvo que se pretenda eliminar el contenedor.
 
-## 8. Estado del trabajo y siguiente paso
+#
+## 8. Estado actual del módulo navil_expert
 
-- **Completado:** simulación de TurtleBot 4 en Gazebo; datos `/scan` y `/odom`; mapa generado por SLAM y guardado; AMCL; Nav2; una navegación autónoma a través de RViz; paquete `navil_expert` creado y compilado.
-- **Completado:** nodo inicial `goal_sender.py` que arranca y muestra un mensaje.
-- **Pendiente (inmediato):** implementar en `goal_sender.py` un `ActionClient` de `nav2_msgs/action/NavigateToPose`, enviar una pose en el marco `map` y obtener el resultado de navegación.
-- **Pendiente (posterior):** generación automática de rutas/episodios variados, seguimiento de éxitos/fallos e integración con la recogida de demostraciones del compañero.
+### Funcionalidades completadas
 
-**Nota de funcionamiento:** este documento refleja los comandos que funcionaron en la sesión de laboratorio. El arranque completo aún no se ha verificado desde cero en un equipo recién restaurado; puede requerir adaptar la imagen o configuración de la universidad.
+- Simulación de TurtleBot 4 mediante Gazebo.
+- Mapa del almacén generado y guardado.
+- Localización mediante AMCL.
+- Navegación autónoma con Nav2.
+- Envío de objetivos individuales mediante `goal_sender`.
+- Ejecución secuencial de objetivos mediante `trajectory_generator`.
+- Escenarios configurables en `config/scenarios.yaml`.
+- Identificación individual de episodios.
+- Publicación de eventos de inicio, éxito y fallo.
+
+### Pruebas realizadas
+
+Se ha comprobado que:
+
+- Nav2 acepta y completa objetivos enviados desde Python.
+- El generador ejecuta dos objetivos consecutivamente.
+- El escenario YAML `ruta_validada` funciona correctamente.
+- Se reciben los cuatro eventos correspondientes a dos episodios completados.
+- Cada episodio conserva su identificador entre el inicio y el final.
+
+### Interfaces para los otros integrantes
+
+- `/navigate_to_pose`: acción utilizada para controlar Nav2.
+- `/navil/goal_pose`: publica el objetivo aceptado.
+- `/navil/episode_event`: publica eventos de episodios en formato JSON.
+
+Los demás módulos deben utilizar `/navil/goal_pose` en lugar de
+`/goal_pose` para evitar duplicar solicitudes de navegación a Nav2.
+
+### Trabajo pendiente
+
+- Integrar los eventos y objetivos con el grabador `il_data`.
+- Validar otros escenarios y situaciones de fallo.
+- Realizar pruebas conjuntas con los módulos de aprendizaje y control.
+
+La implementación principal del módulo experto está completada.
+
+Consultar `ros2_ws/src/navil_expert/README.md` para conocer los
+comandos de ejecución y el formato de los mensajes.
