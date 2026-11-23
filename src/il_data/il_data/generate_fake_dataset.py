@@ -4,7 +4,7 @@ import argparse
 import math
 import random
 
-from .dataset_io import guardar_jsonl
+from .dataset_io import guardar_npz
 from .schema import MuestraNavegacion, NUM_LECTURAS_LIDAR
 
 """ 
@@ -13,7 +13,9 @@ Sirve para comprobar que el sistema de datos funciona antes de dispones
 de grabaciones reales.
 """
 
-def generar_muestra(indice: int, generador: random.Random) -> MuestraNavegacion:
+def generar_muestra(
+    indice: int, generador: random.Random, episode_id: int = 0
+) -> MuestraNavegacion:
     """Crea una observación ficticia con valores coherentes y reproducibles."""
     angulo_objetivo = generador.uniform(-math.pi, math.pi)
     distancia_objetivo = generador.uniform(0.5, 5.0)
@@ -28,7 +30,7 @@ def generar_muestra(indice: int, generador: random.Random) -> MuestraNavegacion:
     velocidad_angular = max(-1.0, min(1.0, 1.5 * angulo_objetivo))
     return MuestraNavegacion(
         marca_temporal=indice * 0.1,
-        id_episodio="episodio_ficticio_001",
+        id_episodio=episode_id,
         lecturas_lidar=lecturas_lidar,
         distancia_objetivo=distancia_objetivo,
         angulo_objetivo=angulo_objetivo,
@@ -41,17 +43,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Genera ejemplos sintéticos para probar el pipeline NavIL."
     )
-    parser.add_argument("--output", default="dataset_ficticio.jsonl")
+    parser.add_argument("--output", default="dataset_ficticio.npz")
     parser.add_argument("--samples", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--episode-id", type=int, default=0)
     args = parser.parse_args()
     if args.samples <= 0:
         parser.error("--samples debe ser mayor que cero")
+    if args.episode_id < 0:
+        parser.error("--episode-id debe ser un entero no negativo")
     generador = random.Random(args.seed)
-    muestras = (
-        generar_muestra(indice, generador) for indice in range(args.samples)
-    )
-    cantidad = guardar_jsonl(muestras, args.output)
+    muestras = [
+        generar_muestra(indice, generador, args.episode_id)
+        for indice in range(args.samples)
+    ]
+    cantidad = guardar_npz(muestras, args.output)
     print(f"Dataset ficticio guardado: {cantidad} muestras en {args.output}")
 
 

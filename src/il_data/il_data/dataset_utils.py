@@ -3,34 +3,32 @@
 import math
 from collections.abc import Sequence
 
-from .schema import NUM_LECTURAS_LIDAR
+from .schema import NUM_LECTURAS_LIDAR, RANGO_MAXIMO_LIDAR_METROS
 
-"""
-Imagina que Lidar original devuelve 360 lecturas, 
-pero nuestra red neuronal espera 90.
-
-La función remuestrear_lidar transforma las 360 lecturas en 90 valores.
-
-Lo hace mediante interpolación lineal: calcula valores intermedios
-para adaptar el número de lecturas.
-
-Necesitamos que tofas las obsevaciones tengan una dimension fija 
-para poder introducirlas en la red neuronal.
-"""
 
 def remuestrear_lidar(
-    rangos: Sequence[float], rango_minimo: float, rango_maximo: float
+    rangos: Sequence[float],
+    angulo_minimo: float,
+    incremento_angular: float,
+    rango_maximo: float = RANGO_MAXIMO_LIDAR_METROS,
 ) -> list[float]:
-    """Normaliza y remuestrea un LaserScan a la longitud del esquema."""
+    """Remuestrea LaserScan a rayos cada 4 grados desde el frente, antihorario.
+
+    El resultado cumple el contrato del modelo: scan[0] apunta al frente,
+    scan[22] apunta aproximadamente a la izquierda y las distancias están en
+    metros. En sectores no cubiertos por un LiDAR de campo de visión parcial,
+    se usa el máximo del contrato.
+    """
     if not rangos:
         raise ValueError("El LaserScan no contiene lecturas")
     if (
-        not math.isfinite(rango_minimo)
+        not math.isfinite(angulo_minimo)
+        or not math.isfinite(incremento_angular)
+        or incremento_angular == 0
         or not math.isfinite(rango_maximo)
-        or rango_minimo < 0
-        or rango_maximo <= rango_minimo
+        or rango_maximo <= 0
     ):
-        raise ValueError("Los límites de rango del LaserScan no son válidos")
+        raise ValueError("Los ángulos o el rango máximo del LaserScan no son válidos")
 
     lecturas = []
     for rango in rangos:
@@ -38,18 +36,36 @@ def remuestrear_lidar(
         if math.isnan(valor) or valor == math.inf:
             valor = rango_maximo
         elif valor == -math.inf:
-            valor = rango_minimo
-        lecturas.append(min(rango_maximo, max(rango_minimo, valor)))
-
-    if len(lecturas) == 1:
-        return lecturas * NUM_LECTURAS_LIDAR
+            valor = 0.0
+        lecturas.append(min(rango_maximo, max(0.0, valor)))
 
     resultado = []
-    ultimo_indice = len(lecturas) - 1
+    cantidad = len(lecturas)
+    paso = abs(incremento_angular)
+    cubre_una_vuelta = paso * cantidad >= (2 * math.pi) - paso * 1.01
     for indice_destino in range(NUM_LECTURAS_LIDAR):
-        posicion = indice_destino * ultimo_indice / (NUM_LECTURAS_LIDAR - 1)
-        indice_inferior = int(posicion)
-        indice_superior = min(indice_inferior + 1, ultimo_indice)
+        angulo_destino = indice_destino * 2 * math.pi / NUM_LECTURAS_LIDAR
+        if cubre_una_vuelta:
+            posicion = (
+                (angulo_destino - angulo_minimo) / incremento_angular
+            ) % cantidad
+        else:
+            sentido = 1.0 if incremento_angular > 0 else -1.0
+            desplazamiento = (
+                (angulo_destino - angulo_minimo) * sentido
+            ) % (2 * math.pi)
+            posicion = desplazamiento / paso
+            if posicion > cantidad - 1 + 1e-9:
+                resultado.append(rango_maximo)
+                continue
+            posicion = min(posicion, cantidad - 1)
+
+        indice_inferior = int(math.floor(posicion))
+        indice_superior = indice_inferior + 1
+        if cubre_una_vuelta:
+            indice_superior %= cantidad
+        else:
+            indice_superior = min(indice_superior, cantidad - 1)
         fraccion = posicion - indice_inferior
         resultado.append(
             lecturas[indice_inferior] * (1 - fraccion)

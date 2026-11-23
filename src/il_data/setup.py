@@ -14,7 +14,7 @@ setup(
         ),
         ("share/" + package_name, ["package.xml"]),
     ],
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "numpy"],
     zip_safe=True,
     maintainer="NavIL team",
     maintainer_email="navil-team@example.com",

@@ -1,13 +1,13 @@
-"""Convierte un rosbag2 de NavIL a un dataset JSONL validado."""
+"""Convierte un rosbag2 de NavIL al formato NPZ del contrato de entrenamiento."""
 
 import argparse
 import math
 from pathlib import Path
 from typing import Any
 
-from .dataset_io import guardar_jsonl
+from .dataset_io import guardar_npz
 from .dataset_utils import calcular_objetivo_relativo, remuestrear_lidar
-from .schema import MuestraNavegacion
+from .schema import MuestraNavegacion, RANGO_MAXIMO_LIDAR_METROS
 
 """
 Este archivo conecta la grabación con el entrenamiento. 
@@ -22,22 +22,37 @@ Prcedimiento:
 6.Comprueba que el LiDAR y la posición no tengan más de 0,5 segundos de antigüedad.
 7.Calcula la distancia y el ángulo al objetivo.
 8.Construye una MuestraNavegacion.
-9.Guarda todas las muestras en JSONL.
+9.Guarda las muestras en el NPZ definido por el contrato de entrenamiento.
 
 """
 
 def convertir(
     ruta_bag: str | Path,
     ruta_salida: str | Path,
+    episode_id: int,
     scan_topic: str = "/scan",
     cmd_vel_topic: str = "/cmd_vel",
     pose_topic: str = "/amcl_pose",
     goal_topic: str = "/goal_pose",
     antiguedad_maxima: float = 0.5,
+    rango_maximo_lidar: float = RANGO_MAXIMO_LIDAR_METROS,
+    desfase_yaw_lidar: float = 0.0,
 ) -> int:
     """Convierte las velocidades usando las observaciones más recientes."""
+    if Path(ruta_salida).suffix.lower() != ".npz":
+        raise ValueError("El archivo de salida debe tener extensión .npz")
     if not math.isfinite(antiguedad_maxima) or antiguedad_maxima <= 0:
         raise ValueError("La antigüedad máxima debe ser positiva y finita")
+    if (
+        isinstance(episode_id, bool)
+        or not isinstance(episode_id, int)
+        or episode_id < 0
+    ):
+        raise ValueError("episode_id debe ser un entero no negativo")
+    if not math.isfinite(rango_maximo_lidar) or rango_maximo_lidar <= 0:
+        raise ValueError("El rango máximo LiDAR debe ser positivo y finito")
+    if not math.isfinite(desfase_yaw_lidar):
+        raise ValueError("El desfase de orientación LiDAR debe ser finito")
 
     try:
         import rosbag2_py
@@ -79,7 +94,6 @@ def convertir(
     ultimo: dict[str, tuple[int, Any]] = {}
     muestras = []
     primera_marca_ns: int | None = None
-    id_episodio = Path(ruta_bag).name
     descartadas = 0
 
     while lector.has_next():
@@ -129,9 +143,12 @@ def convertir(
         muestras.append(
             MuestraNavegacion(
                 marca_temporal=(marca_ns - primera_marca_ns) / 1_000_000_000,
-                id_episodio=id_episodio,
+                id_episodio=episode_id,
                 lecturas_lidar=remuestrear_lidar(
-                    escaneo.ranges, escaneo.range_min, escaneo.range_max
+                    escaneo.ranges,
+                    escaneo.angle_min + desfase_yaw_lidar,
+                    escaneo.angle_increment,
+                    rango_maximo=rango_maximo_lidar,
                 ),
                 distancia_objetivo=distancia,
                 angulo_objetivo=angulo,
@@ -145,7 +162,7 @@ def convertir(
             "No se generaron muestras: comprueba que los tópicos tienen datos "
             "sincronizados y que el rosbag corresponde a un episodio con meta."
         )
-    cantidad = guardar_jsonl(muestras, ruta_salida)
+    cantidad = guardar_npz(muestras, ruta_salida)
     print(f"Dataset guardado: {cantidad} muestras en {ruta_salida}")
     if descartadas:
         print(f"Comandos descartados por falta/desfase de observaciones: {descartadas}")
@@ -154,10 +171,16 @@ def convertir(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Convierte rosbag2 a muestras JSONL para Behavioral Cloning."
+        description="Convierte rosbag2 al NPZ para Behavioral Cloning."
     )
     parser.add_argument("bag", help="Carpeta del rosbag2")
-    parser.add_argument("output", help="Archivo JSONL de salida")
+    parser.add_argument("output", help="Archivo NPZ de salida")
+    parser.add_argument(
+        "--episode-id",
+        type=int,
+        required=True,
+        help="Identificador entero del recorrido (debe ser único entre episodios)",
+    )
     parser.add_argument("--scan-topic", default="/scan")
     parser.add_argument("--cmd-vel-topic", default="/cmd_vel")
     parser.add_argument("--pose-topic", default="/amcl_pose")
@@ -168,15 +191,30 @@ def main() -> None:
         default=0.5,
         help="Antigüedad máxima de scan/pose en segundos",
     )
+    parser.add_argument(
+        "--scan-max-range",
+        type=float,
+        default=RANGO_MAXIMO_LIDAR_METROS,
+        help="Distancia en metros usada para lecturas LiDAR sin retorno",
+    )
+    parser.add_argument(
+        "--scan-yaw-offset",
+        type=float,
+        default=0.0,
+        help="Orientación del frame de /scan respecto al frente del robot (rad)",
+    )
     args = parser.parse_args()
     convertir(
         args.bag,
         args.output,
+        episode_id=args.episode_id,
         scan_topic=args.scan_topic,
         cmd_vel_topic=args.cmd_vel_topic,
         pose_topic=args.pose_topic,
         goal_topic=args.goal_topic,
         antiguedad_maxima=args.max_age,
+        rango_maximo_lidar=args.scan_max_range,
+        desfase_yaw_lidar=args.scan_yaw_offset,
     )
 
 

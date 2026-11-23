@@ -11,8 +11,7 @@ cada muestra de entrenamiento.
 """
 
 import math
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import dataclass
 
 
 # Configuración del esquema
@@ -22,6 +21,7 @@ VERSION_ESQUEMA = "1.0"
 # Este valor podrá modificarse al comprobar la configuración
 # real del sensor.
 NUM_LECTURAS_LIDAR = 90
+RANGO_MAXIMO_LIDAR_METROS = 12.0
 
 
 @dataclass
@@ -37,7 +37,7 @@ class MuestraNavegacion:
     """
 
     marca_temporal: float
-    id_episodio: str
+    id_episodio: int
     lecturas_lidar: list[float]
 
     distancia_objetivo: float
@@ -56,8 +56,12 @@ class MuestraNavegacion:
                 "La marca temporal debe ser un número válido y no negativo"
             )
 
-        if not self.id_episodio.strip():
-            raise ValueError("El identificador del episodio no puede estar vacío")
+        if (
+            isinstance(self.id_episodio, bool)
+            or not isinstance(self.id_episodio, int)
+            or self.id_episodio < 0
+        ):
+            raise ValueError("El identificador del episodio debe ser un entero no negativo")
 
         if len(self.lecturas_lidar) != NUM_LECTURAS_LIDAR:
             raise ValueError(
@@ -89,64 +93,3 @@ class MuestraNavegacion:
 
         if not math.isfinite(self.velocidad_angular_experta):
             raise ValueError("La velocidad angular experta no es válida")
-
-    def a_diccionario(self) -> dict[str, Any]:
-        """Convierte la muestra en un diccionario."""
-        return asdict(self)
-
-    @classmethod
-    def desde_diccionario(cls, datos: dict[str, Any]) -> "MuestraNavegacion":
-        """Crea una muestra a partir de un diccionario."""
-
-        return cls(
-            marca_temporal=float(datos["marca_temporal"]),
-            id_episodio=str(datos["id_episodio"]),
-            lecturas_lidar=[
-                float(valor) for valor in datos["lecturas_lidar"]
-            ],
-            distancia_objetivo=float(datos["distancia_objetivo"]),
-            angulo_objetivo=float(datos["angulo_objetivo"]),
-            velocidad_lineal_experta=float(
-                datos["velocidad_lineal_experta"]
-            ),
-            velocidad_angular_experta=float(
-                datos["velocidad_angular_experta"]
-            ),
-            version_esquema=str(
-                datos.get("version_esquema", VERSION_ESQUEMA)
-            ),
-        )
-
-
-# PRUEBA
-"""
-# Crear una muestra válida
-muestra = MuestraNavegacion(
-    marca_temporal=1.0,
-    id_episodio="episodio_001",
-    lecturas_lidar=[1.0] * 90,
-    distancia_objetivo=2.5,
-    angulo_objetivo=0.35,
-    velocidad_lineal_experta=0.2,
-    velocidad_angular_experta=-0.15
-)
-
-print("Muestra creada correctamente")
-print(muestra.a_diccionario())
-
-# Comprobar que rechaza una muestra incorrecta
-try:
-    MuestraNavegacion(
-        marca_temporal=1.0,
-        id_episodio="episodio_002",
-        lecturas_lidar=[1.0] * 89,
-        distancia_objetivo=2.5,
-        angulo_objetivo=0.35,
-        velocidad_lineal_experta=0.2,
-        velocidad_angular_experta=-0.15
-    )
-
-except ValueError as error:
-    print("\nValidación correcta:")
-    print(error)
-"""
