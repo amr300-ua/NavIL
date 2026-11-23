@@ -23,8 +23,9 @@ setup(
         ],
     },
     entry_points={
-        'console_scripts': [
-            'goal_sender = navil_expert.goal_sender:main',
+    'console_scripts': [
+        'goal_sender = navil_expert.goal_sender:main',
+        'trajectory_generator = navil_expert.trajectory_generator:main',
     ],
 },
 )
