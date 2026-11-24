@@ -63,3 +63,54 @@ def test_blind_policy_without_safety_would_collide():
     outcome, _ = rollout('mock_goal', steps=300,
                          safety_cfg=SafetyConfig(proximity_check=False))
     assert outcome == 'collision'
+
+
+# ------------------------------------------------- ciclo 2: con EpisodeTracker
+from il_control.episodes import EpisodeTracker, load_scenarios, summarize  # noqa: E402
+
+
+def run_scenario(name, policy_type='mock_reactive', dt=0.05):
+    """Ejecuta un escenario de config/scenarios.yaml en el stub, como el runner."""
+    import os
+    sc = load_scenarios(os.path.join(os.path.dirname(__file__), '..', 'config',
+                                     'scenarios.yaml'))[name]
+    world = SimWorld(4.0, [0.0, 0.0, 0.35, 1.5, 1.2, 0.3])
+    policy, safety = make_policy(policy_type), SafetyFilter(SafetyConfig())
+    x, y, yaw, t = -3.0, 0.0, 0.0, 0.0
+    results = []
+    for i, (gx, gy, _) in enumerate(sc, 1):
+        tr = EpisodeTracker((gx, gy), t, (x, y))
+        outcome = None
+        while outcome is None:
+            r = world.raycast(x, y, yaw + LIDAR_YAW, ANGLES, 12.0)
+            d, a = relative_goal(x, y, yaw, gx, gy)
+            scan = laserscan_to_sectors(r, -math.pi, INC, 0.15, 12.0, 90, 12.0, LIDAR_YAW)
+            v, w = policy.predict({'scan': scan, 'goal': [d, a]})
+            pts = scan_to_points(r, -math.pi, INC, 0.15, 12.0, LIDAR_YAW)
+            res = safety.filter(v, w, t, t, t, pts)
+            x2, y2, yaw2 = integrate_unicycle(x, y, yaw, res.v, res.w, dt)
+            if world.in_collision(x2, y2):
+                tr.add_collision()
+            else:
+                x, y, yaw = x2, y2, yaw2
+            t += dt
+            tr.update_odom(x, y)
+            tr.update_map(t, x, y)
+            tr.add_scan_min(float(np.nanmin(np.where(np.isfinite(r), r, np.nan))))
+            outcome = tr.check(t)
+        results.append(tr.result(outcome, episode_id=str(i), run_id='t', scenario=name,
+                                 controller='policy', policy=policy_type, repetition=1,
+                                 waypoint_index=i, waypoint_total=len(sc)))
+    return results
+
+
+def test_runner_logic_mock_circuit():
+    res = run_scenario('mock_circuito')
+    s = summarize(res)
+    assert s['success_rate'] == 1.0 and s['collisions_total'] == 0
+    assert all(0.3 < r.path_efficiency <= 1.0 for r in res)
+
+
+def test_runner_logic_detects_failure_of_blind_policy():
+    res = run_scenario('mock_cruce', policy_type='mock_goal')
+    assert res[0].outcome == 'stuck'  # la seguridad la frena delante del obstáculo

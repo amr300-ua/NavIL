@@ -1,0 +1,39 @@
+# Escenarios de evaluación en bucle cerrado (formato de navil_expert).
+# Coordenadas en el marco "map" (m) y yaw en grados.
+#
+# Los del almacén son los de ros2_ws/src/navil_expert/config/scenarios.yaml
+# (Lucas). Si se cambian allí, copiarlos aquí o pasar
+#   -p scenarios_file:=<ruta a su scenarios.yaml>
+# Pendiente (ciclo 3): definir con el equipo "pasillo_giro", "obstaculos"
+# y "no_visto" sobre el mapa del almacén.
+
+escenarios:
+
+  # ----------------------------------------------------- almacén (Gazebo)
+  ruta_validada:
+    descripcion: "Recorrido entre dos puntos del almacen (validado con Nav2)"
+    waypoints:
+      - {x: -3.810, y: -0.725, yaw: 0.0}
+      - {x: -1.372, y: 2.218, yaw: 0.0}
+
+  ida_vuelta:
+    descripcion: "Recorrido entre dos puntos y regreso al primero"
+    waypoints:
+      - {x: -3.810, y: -0.725, yaw: 0.0}
+      - {x: -1.372, y: 2.218, yaw: 0.0}
+      - {x: -3.810, y: -0.725, yaw: 0.0}
+
+  # ----------------------------------------- mundo del stub (fake_sim)
+  mock_cruce:
+    descripcion: "fake_sim: cruzar la sala esquivando el obstaculo central"
+    waypoints:
+      - {x: 3.0, y: 0.0, yaw: 0.0}
+      - {x: -3.0, y: 0.5, yaw: 180.0}
+
+  mock_circuito:
+    descripcion: "fake_sim: cuatro esquinas"
+    waypoints:
+      - {x: 2.8, y: -2.8, yaw: 0.0}
+      - {x: 2.8, y: 2.8, yaw: 90.0}
+      - {x: -2.8, y: 2.8, yaw: 180.0}
+      - {x: -2.8, y: -2.8, yaw: -90.0}

@@ -7,14 +7,15 @@ il_policy_node:
     policy_type: mock_reactive     # mock_reactive | mock_goal | zero | il_policy
     model_path: ""                 # checkpoint .pt de il_policy (ciclo 2)
     device: cpu
-    control_rate: 10.0             # Hz. LiDAR del TB4 ~5-10 Hz; Nav2 controla a 20 Hz
+    control_rate: 20.0             # Hz = frecuencia del controller_server de Nav2 (dataset)
     scan_topic: /scan
-    goal_topic: /goal_pose
+    goal_topic: /navil/goal_pose   # lo publica navil_expert (Lucas) y episode_runner
     output_topic: /cmd_vel_policy  # nunca /cmd_vel: lo decide el mux
     output_stamped: true           # TB4 en Jazzy: TwistStamped
     base_frame: base_link
     use_lidar_tf: true             # yaw del rplidar_link respecto a base_link desde TF
     lidar_yaw_offset: 0.0          # solo si use_lidar_tf=false o no hay TF
+    scan_reduction: interp         # interp = idéntico a il_data | min
     scan_timeout: 0.5              # s
     goal_tolerance: 0.25           # m (igual que el xy_goal_tolerance típico de Nav2)
     publish_observation: false     # /il_control/observation (depuración/evaluación)

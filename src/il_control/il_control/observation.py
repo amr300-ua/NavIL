@@ -89,6 +89,78 @@ def laserscan_to_sectors(ranges: Sequence[float], angle_min: float,
     return sectors.astype(np.float32)
 
 
+def laserscan_to_contract_interp(ranges: Sequence[float], angle_min: float,
+                                 angle_increment: float, n_sectors: int = 90,
+                                 max_range: float = 12.0,
+                                 yaw_offset: float = 0.0) -> np.ndarray:
+    """Réplica exacta de ``il_data.dataset_utils.remuestrear_lidar``.
+
+    Es el preprocesado con el que se **genera el dataset de entrenamiento**,
+    así que es el que debe usarse en inferencia por defecto: el modelo solo
+    garantiza su comportamiento sobre la distribución de entrada que vio.
+    Toma, para cada ángulo ``i * 360/N`` (marco robot), la interpolación
+    lineal entre los dos rayos más cercanos. ``NaN``/``+inf`` -> ``max_range``,
+    ``-inf`` -> 0. El desfase del LiDAR se suma a ``angle_min`` igual que en
+    ``bag_to_dataset`` (``desfase_yaw_lidar``).
+
+    Si ``il_data`` cambia su función, hay que cambiar esta (el test
+    ``test_interp_matches_il_data`` lo detecta cuando il_data está disponible).
+    """
+    if len(ranges) == 0:
+        raise ValueError('El LaserScan no contiene lecturas')
+    angle_min = float(angle_min) + float(yaw_offset)
+    inc = float(angle_increment)
+    if not (math.isfinite(angle_min) and math.isfinite(inc)) or inc == 0:
+        raise ValueError('Ángulos del LaserScan no válidos')
+    r = np.asarray(ranges, dtype=np.float64)
+    r = np.where(np.isnan(r) | np.isposinf(r), max_range, r)
+    r = np.where(np.isneginf(r), 0.0, r)
+    r = np.clip(r, 0.0, max_range)
+
+    count = r.size
+    step = abs(inc)
+    full_turn = step * count >= TWO_PI - step * 1.01
+    target = np.arange(n_sectors) * (TWO_PI / n_sectors)
+    out = np.empty(n_sectors)
+    for k, a in enumerate(target):
+        if full_turn:
+            pos = ((a - angle_min) / inc) % count
+        else:
+            sign = 1.0 if inc > 0 else -1.0
+            pos = (((a - angle_min) * sign) % TWO_PI) / step
+            if pos > count - 1 + 1e-9:
+                out[k] = max_range
+                continue
+            pos = min(pos, count - 1)
+        lo = int(math.floor(pos))
+        hi = (lo + 1) % count if full_turn else min(lo + 1, count - 1)
+        frac = pos - lo
+        out[k] = r[lo] * (1 - frac) + r[hi] * frac
+    return out.astype(np.float32)
+
+
+SCAN_REDUCTIONS = ('interp', 'min')
+
+
+def preprocess_scan(ranges: Sequence[float], angle_min: float, angle_increment: float,
+                    range_min: float, range_max: float, n_sectors: int = 90,
+                    max_range: float = 12.0, yaw_offset: float = 0.0,
+                    reduction: str = 'interp') -> np.ndarray:
+    """Punto único de entrada del preprocesado del LiDAR para la política.
+
+    * ``interp`` (por defecto): idéntico al dataset de ``il_data``.
+    * ``min``: mínimo por sector de 4°, más conservador con obstáculos finos.
+      Solo debe usarse si el dataset se genera también así.
+    """
+    if reduction == 'interp':
+        return laserscan_to_contract_interp(ranges, angle_min, angle_increment,
+                                            n_sectors, max_range, yaw_offset)
+    if reduction == 'min':
+        return laserscan_to_sectors(ranges, angle_min, angle_increment, range_min,
+                                    range_max, n_sectors, max_range, yaw_offset)
+    raise ValueError(f"reduction '{reduction}' no válida: {SCAN_REDUCTIONS}")
+
+
 def scan_to_points(ranges: Sequence[float], angle_min: float,
                    angle_increment: float, range_min: float, range_max: float,
                    yaw_offset: float = 0.0, x_offset: float = 0.0,

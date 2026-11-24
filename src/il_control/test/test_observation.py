@@ -112,3 +112,51 @@ def test_scan_to_points_frame():
     pts = scan_to_points(scan_with_obstacle(0, 1.0, lidar_yaw_deg=90), ANGLE_MIN, INC,
                          0.15, 12.0, yaw_offset=math.radians(90))
     assert np.allclose(pts[:, 0], 1.0, atol=0.01) and np.allclose(pts[:, 1], 0, atol=0.03)
+
+
+# ---------------------------------------------------------------- modo interp
+from il_control.observation import (laserscan_to_contract_interp,  # noqa: E402
+                                    preprocess_scan)
+
+
+def test_interp_matches_il_data():
+    """Debe dar exactamente lo mismo que remuestrear_lidar de il_data."""
+    du = pytest.importorskip('il_data.dataset_utils')
+    rng = np.random.default_rng(7)
+    cases = [
+        (rng.uniform(0.1, 15, 360), -math.pi, INC, 0.0),
+        (rng.uniform(0.1, 15, 640), -math.pi, 2 * math.pi / 640, 0.3),
+        (rng.uniform(0.1, 15, 1440), 0.0, 2 * math.pi / 1440, math.pi / 2),
+        (rng.uniform(0.1, 15, 270), -math.radians(135), math.radians(1), 0.0),  # FOV parcial
+        (rng.uniform(0.1, 15, 360)[::-1], math.pi, -INC, 0.0),  # sentido horario
+    ]
+    for r, amin, inc, yaw in cases:
+        r = r.copy()
+        r[::13], r[::17], r[::19] = math.nan, math.inf, -math.inf
+        ref = du.remuestrear_lidar(list(r), amin + yaw, inc, 12.0)
+        mine = laserscan_to_contract_interp(r, amin, inc, 90, 12.0, yaw)
+        np.testing.assert_allclose(mine, ref, rtol=0, atol=1e-5)
+
+
+def test_interp_convention_and_rotation():
+    s = preprocess_scan(scan_with_obstacle(0, 0.5, free=5.0), ANGLE_MIN, INC, 0.15, 12.0)
+    assert s[0] == pytest.approx(0.5) and s[45] == pytest.approx(5.0)
+    r = scan_with_obstacle(0, 0.5, free=5.0, lidar_yaw_deg=90)
+    s = preprocess_scan(r, ANGLE_MIN, INC, 0.15, 12.0, yaw_offset=math.radians(90))
+    assert s[0] == pytest.approx(0.5)
+
+
+def test_interp_can_miss_thin_obstacles_but_min_does_not():
+    """Documenta la diferencia: un obstáculo de ~3° entre dos ángulos de muestreo
+    desaparece con 'interp' (muestreo puntual) y se conserva con 'min'."""
+    r = scan_with_obstacle(90, 0.5, free=5.0)  # rayos 89°-91°, muestras en 88° y 92°
+    interp = preprocess_scan(r, ANGLE_MIN, INC, 0.15, 12.0, reduction='interp')
+    mins = preprocess_scan(r, ANGLE_MIN, INC, 0.15, 12.0, reduction='min')
+    assert interp.min() == pytest.approx(5.0) and mins.min() == pytest.approx(0.5)
+
+
+def test_preprocess_dispatch():
+    r = scan_with_obstacle(0, 0.5, free=5.0)
+    assert preprocess_scan(r, ANGLE_MIN, INC, 0.15, 12.0, reduction='min')[0] < 0.6
+    with pytest.raises(ValueError):
+        preprocess_scan(r, ANGLE_MIN, INC, 0.15, 12.0, reduction='mean')

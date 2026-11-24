@@ -3,9 +3,10 @@
 Publica lo mismo que el robot real necesita para il_control:
 ``/scan`` (LaserScan en ``rplidar_link``), ``/odom``, TF ``odom -> base_link``,
 TF estáticas ``map -> odom`` y ``base_link -> rplidar_link`` (con yaw
-configurable para emular un LiDAR montado girado) y un ``/goal_pose``.
-Integra lo que llega a ``/cmd_vel``. Si el robot toca un obstáculo se detiene
-y publica ``/il_control/sim_collision``.
+configurable para emular un LiDAR montado girado) y, opcionalmente, un
+objetivo en ``/navil/goal_pose`` (si no se usa episode_runner).
+Integra lo que llega a ``/cmd_vel``. Un movimiento que haría chocar al robot
+no se aplica y se publica ``/il_control/sim_collision`` (como un bumper).
 """
 
 import math
@@ -57,6 +58,8 @@ class FakeSim(Node):
         p('obstacles', [1.5, 0.0, 0.3])
         p('start', [-3.0, 0.0, 0.0])
         p('goal', [3.0, 0.0])
+        p('publish_goal', True)
+        p('goal_topic', '/navil/goal_pose')
         p('goal_delay', 3.0)
         g = lambda n: self.get_parameter(n).value  # noqa: E731
 
@@ -64,7 +67,6 @@ class FakeSim(Node):
         self.x, self.y, self.yaw = (float(v) for v in g('start'))
         self.v = self.w = 0.0
         self.cmd_t = None
-        self.collided = False
         self.cmd_timeout = float(g('cmd_timeout'))
         self.n_rays = int(g('n_rays'))
         self.range_min, self.range_max = float(g('range_min')), float(g('range_max'))
@@ -77,7 +79,7 @@ class FakeSim(Node):
         self.create_subscription(twist_type(g('cmd_stamped')), g('cmd_topic'), self._on_cmd, 10)
         self.scan_pub = self.create_publisher(LaserScan, '/scan', 10)
         self.odom_pub = self.create_publisher(Odometry, '/odom', 10)
-        self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 1)
+        self.goal_pub = self.create_publisher(PoseStamped, g('goal_topic'), 10)
         self.coll_pub = self.create_publisher(Bool, '/il_control/sim_collision', 10)
         self.tf_pub = TransformBroadcaster(self)
         self.static_tf = StaticTransformBroadcaster(self)
@@ -88,7 +90,8 @@ class FakeSim(Node):
 
         self.create_timer(self.dt, self._step)
         self.create_timer(1.0 / float(g('scan_rate')), self._publish_scan)
-        self._goal_timer = self.create_timer(float(g('goal_delay')), self._publish_goal)
+        if g('publish_goal'):
+            self._goal_timer = self.create_timer(float(g('goal_delay')), self._publish_goal)
         self.get_logger().info(
             f'Sim: robot en ({self.x:.1f}, {self.y:.1f}), objetivo {self.goal}, '
             f'LiDAR girado {math.degrees(self.lidar_yaw):.0f}°')
@@ -100,14 +103,16 @@ class FakeSim(Node):
     def _step(self):
         if self.cmd_t is None or now_s(self) - self.cmd_t > self.cmd_timeout:
             self.v = self.w = 0.0  # como la base real: sin comandos, se para
-        if not self.collided:
-            x, y, yaw = integrate_unicycle(self.x, self.y, self.yaw, self.v, self.w, self.dt)
-            if self.world.in_collision(x, y):
-                self.collided = True
-                self.coll_pub.publish(Bool(data=True))
-                self.get_logger().error(f'¡COLISIÓN en ({x:.2f}, {y:.2f})! Robot detenido.')
-            else:
-                self.x, self.y, self.yaw = x, y, yaw
+        x, y, yaw = integrate_unicycle(self.x, self.y, self.yaw, self.v, self.w, self.dt)
+        moving = True
+        if self.world.in_collision(x, y):
+            # El bumper detiene el avance; girar o alejarse sigue siendo posible.
+            moving = False
+            self.coll_pub.publish(Bool(data=True))
+            self.get_logger().error(f'¡COLISIÓN en ({x:.2f}, {y:.2f})!',
+                                    throttle_duration_sec=1.0)
+        else:
+            self.x, self.y, self.yaw = x, y, yaw
         stamp = self.get_clock().now().to_msg()
         self.tf_pub.sendTransform(_tf(stamp, 'odom', 'base_link', self.x, self.y, self.yaw))
         odom = Odometry()
@@ -116,7 +121,6 @@ class FakeSim(Node):
         q = _quat_z(self.yaw)
         o = odom.pose.pose.orientation
         o.x, o.y, o.z, o.w = q
-        moving = not self.collided
         odom.twist.twist.linear.x = self.v if moving else 0.0
         odom.twist.twist.angular.z = self.w if moving else 0.0
         self.odom_pub.publish(odom)
@@ -146,7 +150,7 @@ class FakeSim(Node):
         msg.pose.position.x, msg.pose.position.y = self.goal
         msg.pose.orientation.w = 1.0
         self.goal_pub.publish(msg)
-        self.get_logger().info(f'Objetivo publicado en /goal_pose: {self.goal}')
+        self.get_logger().info(f'Objetivo publicado: {self.goal}')
 
 
 def main(args=None):

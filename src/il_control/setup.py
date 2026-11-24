@@ -7,7 +7,7 @@ package_name = 'il_control'
 
 setup(
     name=package_name,
-    version='0.1.0',
+    version='0.2.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
@@ -26,6 +26,7 @@ setup(
             'policy_node = il_control.policy_node:main',
             'cmd_vel_mux = il_control.cmd_vel_mux:main',
             'fake_sim = il_control.fake_sim:main',
+            'episode_runner = il_control.episode_runner:main',
         ],
     },
 )

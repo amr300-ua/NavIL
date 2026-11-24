@@ -22,8 +22,8 @@ from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Bool, Float32, Float32MultiArray
 from tf2_ros import Buffer, TransformListener
 
-from il_control.observation import (goal_in_base_frame, laserscan_to_sectors,
-                                    transform_point_2d)
+from il_control.observation import (SCAN_REDUCTIONS, goal_in_base_frame,
+                                    preprocess_scan, transform_point_2d)
 from il_control.policies import POLICY_TYPES, make_policy
 from il_control.ros_utils import lookup_planar, make_cmd, now_s, twist_type
 
@@ -36,14 +36,15 @@ class PolicyNode(Node):
         p('policy_type', 'mock_reactive')
         p('model_path', '')
         p('device', 'cpu')
-        p('control_rate', 10.0)
+        p('control_rate', 20.0)
         p('scan_topic', '/scan')
-        p('goal_topic', '/goal_pose')
+        p('goal_topic', '/navil/goal_pose')
         p('output_topic', '/cmd_vel_policy')
         p('output_stamped', True)
         p('base_frame', 'base_link')
         p('use_lidar_tf', True)
         p('lidar_yaw_offset', 0.0)
+        p('scan_reduction', 'interp')
         p('scan_timeout', 0.5)
         p('goal_tolerance', 0.25)
         p('publish_observation', False)
@@ -56,6 +57,9 @@ class PolicyNode(Node):
         self.goal_tol = float(g('goal_tolerance'))
         self.stamped = bool(g('output_stamped'))
         self.publish_obs = bool(g('publish_observation'))
+        self.reduction = g('scan_reduction')
+        if self.reduction not in SCAN_REDUCTIONS:
+            raise ValueError(f"scan_reduction '{self.reduction}' no válido: {SCAN_REDUCTIONS}")
 
         ptype = g('policy_type')
         if ptype not in POLICY_TYPES:
@@ -85,7 +89,8 @@ class PolicyNode(Node):
         self.get_logger().info(
             f'Política: {self.policy.describe()} | {rate:.1f} Hz | '
             f"salida {g('output_topic')} ({'TwistStamped' if self.stamped else 'Twist'}) | "
-            f'scan -> {self.policy.scan_size} sectores')
+            f'scan -> {self.policy.scan_size} sectores ({self.reduction}) | '
+            f"objetivo {g('goal_topic')}")
 
     # ---------------------------------------------------------------- entradas
     def _on_scan(self, msg: LaserScan):
@@ -147,9 +152,10 @@ class PolicyNode(Node):
 
         s = self.scan
         try:
-            scan90 = laserscan_to_sectors(
+            scan90 = preprocess_scan(
                 s.ranges, s.angle_min, s.angle_increment, s.range_min, s.range_max,
-                self.policy.scan_size, self.policy.max_range, self.lidar_yaw)
+                self.policy.scan_size, self.policy.max_range, self.lidar_yaw,
+                self.reduction)
             obs = {'scan': scan90, 'goal': [goal[0], goal[1]]}
             t0 = time.perf_counter()
             v, w = self.policy.predict(obs)
