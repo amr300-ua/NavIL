@@ -32,7 +32,7 @@ RUN pip3 install --no-cache-dir --break-system-packages \
 ```
 
 ```bash
-cd ~/robotica-il
+cd ~/ros2_ws
 colcon build --packages-select il_policy --symlink-install
 source install/setup.bash
 ```

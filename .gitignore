@@ -1,20 +1,19 @@
-# Datos y modelos (no se versionan; se regeneran con los scripts)
+# Python
+__pycache__/
+*.py[codz]
+*.egg-info/
+.pytest_cache/
+.coverage
+# ROS 2 / colcon
+build/
+install/
+log/
+# Datos y modelos (no se suben)
 data/
 models/
 *.npz
 *.pt
 *.pth
-
-# ROS 2 / colcon
-build/
-install/
-log/
-
-# Python
-__pycache__/
-*.pyc
-*.egg-info/
-.pytest_cache/
-
+navil_results/
 # Editor
 .vscode/
