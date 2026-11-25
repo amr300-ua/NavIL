@@ -1,7 +1,9 @@
 """Lectura, escritura y validación del formato NPZ del contrato NavIL."""
 
+import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -73,6 +75,12 @@ def validar_arrays_dataset(
             raise ValueError(f"{clave} debe tener tipo float32")
         if not np.all(np.isfinite(datos[clave])):
             raise ValueError(f"{clave} contiene NaN o infinito")
+    if np.any(datos["scan"] < 0):
+        raise ValueError("scan contiene distancias negativas")
+    if np.any(datos["goal"][:, 0] < 0):
+        raise ValueError("goal contiene distancias negativas")
+    if np.any(np.abs(datos["goal"][:, 1]) > np.pi):
+        raise ValueError("goal contiene ángulos fuera del rango [-pi, pi]")
     if datos["episode_id"].dtype.kind not in "iu":
         raise ValueError("episode_id debe tener un tipo entero")
     if np.any(datos["episode_id"] < 0):
@@ -100,3 +108,66 @@ def cargar_npz(ruta: str | Path) -> dict[str, np.ndarray]:
         datos = {clave: archivo[clave] for clave in archivo.files}
     validar_arrays_dataset(datos)
     return datos
+
+
+def crear_informe_calidad(
+    datos: Mapping[str, np.ndarray],
+    tiempos_muestra: Sequence[float],
+    acciones_totales: int,
+    muestras_descartadas: Mapping[str, int],
+    resultado_episodio: str,
+) -> dict[str, Any]:
+    """Calcula estadísticas básicas de un episodio ya validado."""
+    cantidad = validar_arrays_dataset(datos)
+    if np.unique(datos["episode_id"]).size != 1:
+        raise ValueError("El informe individual requiere exactamente un episodio")
+    if len(tiempos_muestra) != cantidad:
+        raise ValueError("Debe proporcionarse un tiempo por cada muestra válida")
+    if acciones_totales < cantidad:
+        raise ValueError("El total de acciones no puede ser menor que las muestras")
+    tiempos = np.asarray(tiempos_muestra, dtype=np.float64)
+    if not np.all(np.isfinite(tiempos)):
+        raise ValueError("Los tiempos de muestra deben ser finitos")
+    if tiempos.size > 1 and np.any(np.diff(tiempos) < 0):
+        raise ValueError("Los tiempos de muestra deben estar ordenados")
+    if any(numero < 0 for numero in muestras_descartadas.values()):
+        raise ValueError("Los contadores de muestras descartadas no pueden ser negativos")
+
+    def estadisticas(valores: np.ndarray) -> dict[str, float]:
+        return {
+            "min": float(np.min(valores)),
+            "mean": float(np.mean(valores)),
+            "max": float(np.max(valores)),
+        }
+
+    total_descartadas = sum(muestras_descartadas.values())
+    return {
+        "episode_id": int(datos["episode_id"][0]),
+        "outcome": resultado_episodio,
+        "sample_count": cantidad,
+        "action_count": acciones_totales,
+        "discarded_count": total_descartadas,
+        "discarded_by_reason": dict(muestras_descartadas),
+        "valid_percentage": (
+            100.0 * cantidad / acciones_totales if acciones_totales else 0.0
+        ),
+        "duration_seconds": (
+            float(tiempos[-1] - tiempos[0]) if tiempos.size > 1 else 0.0
+        ),
+        "v_meters_per_second": estadisticas(datos["v"]),
+        "w_radians_per_second": estadisticas(datos["w"]),
+        "goal_distance_meters": estadisticas(datos["goal"][:, 0]),
+        "goal_angle_radians": estadisticas(datos["goal"][:, 1]),
+    }
+
+
+def guardar_informe_calidad(
+    informe: Mapping[str, Any], ruta_npz: str | Path
+) -> Path:
+    """Escribe el informe JSON junto al NPZ, sin alterar el contrato NPZ."""
+    ruta_informe = Path(ruta_npz).with_suffix(".metadata.json")
+    ruta_informe.parent.mkdir(parents=True, exist_ok=True)
+    with ruta_informe.open("w", encoding="utf-8") as archivo:
+        json.dump(informe, archivo, indent=2, allow_nan=False)
+        archivo.write("\n")
+    return ruta_informe

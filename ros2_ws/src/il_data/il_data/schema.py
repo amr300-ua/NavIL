@@ -24,6 +24,32 @@ NUM_LECTURAS_LIDAR = 90
 RANGO_MAXIMO_LIDAR_METROS = 12.0
 
 
+def normalizar_id_episodio(identificador: int | str) -> tuple[int, str]:
+    """Devuelve el ID entero del NPZ y conserva el ID original del episodio.
+
+    El experto usa identificadores como ``33f23ed2_001``. El NPZ de la
+    integrante 3 requiere un entero, así que se usa el sufijo numérico; el ID
+    completo se conserva en los metadatos laterales.
+    """
+    if isinstance(identificador, bool):
+        raise ValueError("El identificador del episodio no puede ser booleano")
+    if isinstance(identificador, int):
+        if identificador < 0:
+            raise ValueError("El identificador del episodio debe ser no negativo")
+        return identificador, str(identificador)
+    if not isinstance(identificador, str) or not identificador.strip():
+        raise ValueError("El identificador del episodio debe ser texto o entero")
+
+    identificador = identificador.strip()
+    sufijo = identificador.rsplit("_", 1)[-1]
+    if not sufijo.isdecimal():
+        raise ValueError(
+            "El ID textual debe terminar en un sufijo numérico, "
+            "por ejemplo 33f23ed2_001"
+        )
+    return int(sufijo), identificador
+
+
 @dataclass
 class MuestraNavegacion:
     """
