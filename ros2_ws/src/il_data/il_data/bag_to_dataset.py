@@ -33,7 +33,7 @@ def convertir(
     scan_topic: str = "/scan",
     cmd_vel_topic: str = "/cmd_vel",
     pose_topic: str = "/amcl_pose",
-    goal_topic: str = "/goal_pose",
+    goal_topic: str = "/navil/goal_pose",
     antiguedad_maxima: float = 0.5,
     rango_maximo_lidar: float = RANGO_MAXIMO_LIDAR_METROS,
     desfase_yaw_lidar: float = 0.0,
@@ -184,7 +184,7 @@ def main() -> None:
     parser.add_argument("--scan-topic", default="/scan")
     parser.add_argument("--cmd-vel-topic", default="/cmd_vel")
     parser.add_argument("--pose-topic", default="/amcl_pose")
-    parser.add_argument("--goal-topic", default="/goal_pose")
+    parser.add_argument("--goal-topic", default="/navil/goal_pose")
     parser.add_argument(
         "--max-age",
         type=float,

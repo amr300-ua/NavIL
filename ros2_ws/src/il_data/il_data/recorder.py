@@ -23,7 +23,7 @@ def crear_argumentos() -> argparse.ArgumentParser:
     parser.add_argument("--scan-topic", default="/scan")
     parser.add_argument("--cmd-vel-topic", default="/cmd_vel")
     parser.add_argument("--pose-topic", default="/amcl_pose")
-    parser.add_argument("--goal-topic", default="/goal_pose")
+    parser.add_argument("--goal-topic", default="/navil/goal_pose")
     return parser
 
 
