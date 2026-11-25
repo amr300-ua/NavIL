@@ -1,0 +1,29 @@
+# Escenario de prueba del ciclo 1 sin Gazebo (mock_test.launch.py).
+# Pasillo con un obstáculo en medio entre el robot y el objetivo.
+
+fake_sim:
+  ros__parameters:
+    rate: 50.0
+    scan_rate: 10.0
+    cmd_topic: /cmd_vel
+    cmd_stamped: true
+    n_rays: 360
+    range_min: 0.15
+    range_max: 12.0
+    noise_std: 0.01
+    lidar_frame: rplidar_link
+    lidar_yaw: 1.5708              # LiDAR girado 90°: comprueba que se usa la TF
+    room_half: 4.0
+    obstacles: [0.0, 0.0, 0.35, 1.5, 1.2, 0.3]   # [x, y, r, ...]
+    start: [-3.0, 0.0, 0.0]
+    goal: [3.0, 0.0]
+    goal_delay: 3.0
+
+# "Experto" de mentira: otra instancia de policy_node que publica donde lo
+# haría Nav2 tras el remapeo. Permite probar la conmutación expert/policy.
+fake_expert:
+  ros__parameters:
+    policy_type: mock_reactive
+    output_topic: /cmd_vel_expert
+    output_stamped: true
+    control_rate: 20.0

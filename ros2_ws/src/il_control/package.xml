@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>il_control</name>
+  <version>0.2.0</version>
+  <description>
+    Módulo 4 — Integración ROS 2 y evaluación: nodo de inferencia de la política
+    aprendida, selector exclusivo Nav2/política y capa de seguridad (límites,
+    watchdogs, parada por proximidad) y runner de episodios en bucle cerrado
+    con métricas.
+  </description>
+  <maintainer email="amr300@alu.ua.es">Alejandro Martinez</maintainer>
+  <license>MIT</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>rcl_interfaces</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- Opcionales (import perezoso): nav2_msgs para controller:=expert e
+       irobot_create_msgs para el bumper (/hazard_detection). Ambos vienen
+       con la instalación de TurtleBot 4 / Nav2. -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <!-- il_policy (+ PyTorch) solo es necesario con policy_type:=il_policy;
+       no se declara para no acoplar los módulos. -->
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
