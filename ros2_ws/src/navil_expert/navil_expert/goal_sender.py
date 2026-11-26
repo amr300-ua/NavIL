@@ -2,10 +2,11 @@
 import argparse
 import math
 
-import rclpy
+
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
+import rclpy
 from rclpy.action import ActionClient
 from rclpy.node import Node
 
@@ -27,7 +28,7 @@ class GoalSender(Node):
             PoseStamped,
             '/navil/goal_pose',
             10
-        )       
+        )
 
     def send_goal(self, x, y, yaw_deg):
         self.get_logger().info('Esperando al servidor de Nav2...')

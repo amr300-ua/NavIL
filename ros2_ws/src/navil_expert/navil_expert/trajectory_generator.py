@@ -1,25 +1,21 @@
 
 import argparse
 import json
-import uuid
+
 from pathlib import Path
 import time
-import yaml
-import rclpy
+import uuid
 
 from ament_index_python.packages import get_package_share_directory
 from navil_expert.goal_sender import GoalSender
+import rclpy
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
-from rclpy.qos import (
-    QoSProfile,
-    ReliabilityPolicy,
-    DurabilityPolicy
-)
+import yaml
 
 
 def cargar_escenario(nombre):
     """Carga los objetivos de un escenario YAML."""
-
     ruta = (
         Path(get_package_share_directory('navil_expert'))
         / 'config'
@@ -35,7 +31,7 @@ def cargar_escenario(nombre):
         disponibles = ', '.join(escenarios.keys())
         raise ValueError(
             f"Escenario '{nombre}' no encontrado. "
-            f"Disponibles: {disponibles}"
+            f'Disponibles: {disponibles}'
         )
 
     escenario = escenarios[nombre]
@@ -58,10 +54,8 @@ def cargar_escenario(nombre):
     return waypoints
 
 
-def publicar_evento(publicador, node, evento, episodio_id,
-                   escenario, indice, total, x, y, yaw):
+def publicar_evento(publicador, node, evento, episodio_id, escenario, indice, total, x, y, yaw):
     """Publica informacion sobre el estado de un episodio."""
-
     datos = {
         'event': evento,
         'episode_id': episodio_id,

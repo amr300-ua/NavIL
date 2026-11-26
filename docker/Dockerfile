@@ -108,6 +108,8 @@ RUN rosdep init && rosdep update
 RUN pip3 install --no-cache-dir --break-system-packages \
     torch --index-url https://download.pytorch.org/whl/cpu
     
+RUN apt-get update && apt-get install -y python3-pytest
+
 # ============================================================================
 # 8. Creación de Usuario No-Root (CORREGIDO PARA UBUNTU 24.04)
 # ============================================================================
