@@ -16,8 +16,8 @@ setup(
     ],
     install_requires=["setuptools", "numpy"],
     zip_safe=True,
-    maintainer="NavIL team",
-    maintainer_email="navil-team@example.com",
+    maintainer="María Mestre,
+    maintainer_email="mms254@alu.ua.es",
     description="Captura y preparación de datos para aprendizaje por imitación en NavIL.",
     license="MIT",
     entry_points={
