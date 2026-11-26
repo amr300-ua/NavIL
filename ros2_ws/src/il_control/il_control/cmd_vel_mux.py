@@ -148,8 +148,12 @@ class CmdVelMux(Node):
             res = self.safety.filter(v, w, now, t, self.scan_t, self.points, prox)
 
         if res.reason != self.reason:
-            level = self.get_logger().warn if res.is_stop else self.get_logger().info
-            level(f'[{self.mode}] seguridad: {self.reason} -> {res.reason}')
+            msg = f'[{self.mode}] seguridad: {self.reason} -> {res.reason}'
+            if res.is_stop:
+                self.get_logger().warn(msg)
+            else:
+                self.get_logger().info(msg)
+                
             self.counts[res.reason] = self.counts.get(res.reason, 0) + 1
             self.reason = res.reason
         self.out_pub.publish(make_cmd(res.v, res.w, self.out_stamped,

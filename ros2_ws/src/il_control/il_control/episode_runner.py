@@ -370,10 +370,14 @@ class EpisodeRunner(Node):
         self.writer.add(res)
         ev = 'episode_success' if res.success else 'episode_failed'
         self._event(ev, rep, idx, wp, outcome=outcome, metrics=res.to_row())
-        log = self.get_logger().info if res.success else self.get_logger().warn
-        log(f'Episodio {res.episode_id}: {outcome} | {res.time_s:.1f} s | '
-            f'{res.path_length_m:.2f} m | colisiones {res.collisions} | '
-            f'e-stops {res.estop_events} | d_final {res.final_dist_m:.2f} m')
+        msg = (f'Episodio {res.episode_id}: {outcome} | {res.time_s:.1f} s | '
+               f'{res.path_length_m:.2f} m | colisiones {res.collisions} | '
+               f'e-stops {res.estop_events} | d_final {res.final_dist_m:.2f} m')
+        if res.success:
+            self.get_logger().info(msg)
+        else:
+            self.get_logger().warn(msg)
+
         self.tracker = None
         self.k += 1
         if self.k >= len(self.queue) or (not res.success and self.stop_on_failure):
