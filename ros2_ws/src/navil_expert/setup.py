@@ -17,7 +17,7 @@ setup(
 
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='lucasbeneyto',
+    maintainer='Lucas Beneyto',
     maintainer_email='lbs62@alu.ua.es',
     description='Controlador experto basado en Nav2 para generar demostraciones de navegacion autonoma mediante aprendizaje por imitacion.',
     license='Apache-2.0',
